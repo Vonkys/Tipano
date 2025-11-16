@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <title>Tiptano – statistiky</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    :root{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:16px;color-scheme:light dark;}
+    body{margin:0;padding:0;background:#0f172a;color:#e5e7eb;display:flex;justify-content:center;}
+    .app{width:100%;max-width:900px;padding:1rem;box-sizing:border-box;}
+    nav{display:flex;align-items:center;justify-content:space-between;gap:0.75rem;margin-bottom:1rem;}
+    .logo{font-weight:700;letter-spacing:0.08em;text-transform:uppercase;font-size:0.9rem;color:#38bdf8;}
+    .nav-links{display:flex;gap:0.5rem;flex-wrap:wrap;}
+    .nav-link{font-size:0.8rem;padding:0.35rem 0.7rem;border-radius:999px;border:1px solid #1f2937;text-decoration:none;color:#e5e7eb;background:#020617;}
+    .nav-link.primary{background:linear-gradient(135deg,#0ea5e9,#22c55e);color:#0b1120;border:none;}
+    h1{font-size:1.3rem;margin:0 0 0.3rem;}
+    .subtitle{font-size:0.85rem;color:#9ca3af;margin-bottom:0.8rem;}
+    .card{background:#020617;border-radius:0.75rem;padding:0.8rem 0.9rem;margin-bottom:0.9rem;box-shadow:0 8px 24px rgba(0,0,0,0.35);border:1px solid #1f2937;}
+    label{font-size:0.8rem;display:block;margin-bottom:0.2rem;color:#9ca3af;}
+    input,button{border-radius:0.5rem;border:1px solid #374151;padding:0.45rem 0.55rem;font-size:0.9rem;box-sizing:border-box;background:#020617;color:#e5e7eb;}
+    input:focus{outline:2px solid #38bdf8;outline-offset:1px;border-color:#38bdf8;}
+    input[type="number"]{text-align:right;}
+    .field-row{display:flex;gap:0.5rem;margin-bottom:0.5rem;flex-wrap:wrap;}
+    .field{flex:1 1 100%;}
+    .field.small{flex:0 0 6rem;}
+    .btn{border-radius:999px;border:none;padding:0.5rem 0.9rem;font-weight:600;cursor:pointer;background:linear-gradient(135deg,#0ea5e9,#22c55e);color:#0b1120;display:inline-flex;align-items:center;justify-content:center;gap:0.35rem;white-space:nowrap;}
+    .btn.secondary{background:transparent;border:1px solid #4b5563;color:#e5e7eb;}
+    .btn.small{padding:0.35rem 0.65rem;font-size:0.8rem;}
+    .btn:active{transform:translateY(1px);}
+    .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:0.5rem;font-size:0.9rem;margin-top:0.4rem;}
+    .stat-box{border-radius:0.6rem;padding:0.5rem 0.6rem;border:1px solid #1f2937;background:#020617;}
+    .stat-label{font-size:0.75rem;color:#9ca3af;margin-bottom:0.15rem;}
+    .stat-value{font-size:0.95rem;font-weight:600;}
+    .msg{font-size:0.8rem;margin-top:0.3rem;}
+    .msg.ok{color:#22c55e;}
+    .msg.err{color:#f97373;}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <nav>
+      <div class="logo">TIPTANO</div>
+      <div class="nav-links">
+        <a class="nav-link" href="index.html">Domů</a>
+        <a class="nav-link" href="novy-tiket.html">Nový tiket</a>
+        <a class="nav-link" href="moje-tikety.html">Moje tikety</a>
+        <a class="nav-link primary" href="statistiky.html">Statistiky</a>
+      </div>
+    </nav>
+
+    <h1>Statistiky & peněženka</h1>
+    <div class="subtitle">Všechno, co tě zajímá: vloženo, blokované sázky, úspěšnost, bilance.</div>
+
+    <div class="card">
+      <h2 style="font-size:0.95rem;margin:0 0 0.4rem;">Peněženka (virtuální)</h2>
+      <div class="field-row">
+        <div class="field small">
+          <label for="deposit-amount">Vložit</label>
+          <input type="number" id="deposit-amount" min="0" step="1" placeholder="1000">
+        </div>
+        <div class="field">
+          <label>&nbsp;</label>
+          <button class="btn" id="deposit-btn">➕ Vložit částku</button>
+        </div>
+        <div class="field">
+          <label>&nbsp;</label>
+          <button class="btn small secondary" id="reset-wallet">🔄 Reset peněženky</button>
+        </div>
+      </div>
+      <div class="stats-grid" id="wallet-stats"></div>
+      <div class="msg" id="wallet-msg"></div>
+    </div>
+
+    <div class="card">
+      <h2 style="font-size:0.95rem;margin:0 0 0.4rem;">Statistiky sázení</h2>
+      <div id="bet-stats">Načítám…</div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY='tiptano-data-v1';
+    let data={slips:[],wallet:{deposited:0}};
+
+    function loadData(){
+      try{
+        const raw=localStorage.getItem(STORAGE_KEY);
+        if(!raw)return;
+        const parsed=JSON.parse(raw);
+        if(parsed.slips)data.slips=parsed.slips;
+        if(parsed.wallet)data.wallet=parsed.wallet;
+        if(typeof data.wallet.deposited!=='number')data.wallet.deposited=0;
+      }catch(e){}
+    }
+    function saveData(){localStorage.setItem(STORAGE_KEY,JSON.stringify(data));}
+    function fmtMoney(v){if(!v)return'0 Kč';const sign=v<0?'-':'';const abs=Math.abs(v);const r=Math.round(abs*100)/100;const parts=r.toFixed(2).split('.');if(parts[1]==='00')return sign+parts[0]+' Kč';return sign+parts[0]+','+parts[1]+' Kč';}
+    function fmtPct(v){return v.toFixed(1).replace('.',',')+' %';}
+    function getSlipStats(slip){
+      const matches=Array.isArray(slip.matches)?slip.matches:[];
+      const total=matches.length;
+      let won=0,lost=0,pending=0;
+      matches.forEach(m=>{if(m.status==='won')won++;else if(m.status==='lost')lost++;else pending++;});
+      let status='pending';
+      if(total>0){
+        if(lost>0)status='lost';
+        else if(pending>0)status='pending';
+        else status='won';
+      }
+      return{total,won,lost,pending,status};
+    }
+    function getSlipOdds(slip){
+      const matches=Array.isArray(slip.matches)?slip.matches:[];
+      if(!matches.length)return 0;
+      return matches.reduce((acc,m)=>acc*(m.odds||1),1);
+    }
+
+    // vrací i pendingStake, aby se dal spočítat volný zůstatek
+    function calcStats(){
+      let totalStake=0,totalPL=0;
+      let totalWins=0;
+      let wonTips=0,lostTips=0;
+      let pendingStake=0;
+
+      data.slips.forEach(slip=>{
+        const stats=getSlipStats(slip);
+        const stake=Number(slip.stake)||0;
+        const odds=getSlipOdds(slip);
+        totalStake+=stake;
+
+        const matches=Array.isArray(slip.matches)?slip.matches:[];
+        matches.forEach(m=>{
+          if(m.status==='won')wonTips++; else if(m.status==='lost')lostTips++;
+        });
+
+        if(stake>0&&odds>0){
+          if(stats.status==='won'){
+            const win=stake*odds;
+            totalWins+=win;
+            totalPL+=win-stake;
+          }else if(stats.status==='lost'){
+            totalPL-=stake;
+          }else if(stats.status==='pending'){
+            pendingStake+=stake;
+          }
+        }else if(stake>0 && stats.status==='pending'){
+          pendingStake+=stake;
+        }
+      });
+      const decided=wonTips+lostTips;
+      const rate=decided?(wonTips/decided*100):0;
+      const lostAmount=totalStake-totalWins;
+      return{totalStake,totalPL,totalWins,wonTips,lostTips,decided,rate,lostAmount,pendingStake};
+    }
+
+    function renderWallet(){
+      const w=data.wallet;
+      const s=calcStats();
+      const balance=(Number(w.deposited)||0)+s.totalPL-s.pendingStake;
+
+      const walletStats=document.getElementById('wallet-stats');
+      walletStats.innerHTML=`
+        <div class="stat-box">
+          <div class="stat-label">Celkem vloženo</div>
+          <div class="stat-value">${fmtMoney(w.deposited)}</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Blokováno v rozehraných tiketech</div>
+          <div class="stat-value">${fmtMoney(s.pendingStake)}</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Aktuální volný zůstatek</div>
+          <div class="stat-value">${fmtMoney(balance)}</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Celkový výsledek sázení</div>
+          <div class="stat-value">${fmtMoney(s.totalPL)}</div>
+        </div>
+      `;
+    }
+
+    function renderBetStats(){
+      const el=document.getElementById('bet-stats');
+      if(!data.slips.length){
+        el.textContent='Zatím žádné tikety – není co počítat. 🙂';
+        return;
+      }
+      const s=calcStats();
+      el.innerHTML=`
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-label">Počet tiketů</div>
+            <div class="stat-value">${data.slips.length}</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Tipů vyhodnoceno</div>
+            <div class="stat-value">${s.decided}</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Výherní tipy</div>
+            <div class="stat-value">${s.wonTips}</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Prohraný tipy</div>
+            <div class="stat-value">${s.lostTips}</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Úspěšnost tipů</div>
+            <div class="stat-value">${s.decided?fmtPct(s.rate):'—'}</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Prosázeno</div>
+            <div class="stat-value">${fmtMoney(s.totalStake)}</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Celkové výhry</div>
+            <div class="stat-value">${fmtMoney(s.totalWins)}</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Celkově prohráno</div>
+            <div class="stat-value">${fmtMoney(s.lostAmount>0?s.lostAmount:0)}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    document.getElementById('deposit-btn').addEventListener('click',()=>{
+      const inp=document.getElementById('deposit-amount');
+      const msg=document.getElementById('wallet-msg');
+      msg.textContent='';msg.className='msg';
+      const val=parseFloat((inp.value||'').toString().replace(',','.'))||0;
+      if(val<=0){
+        msg.textContent='Zadej částku větší než 0.';
+        msg.classList.add('err');
+        return;
+      }
+      data.wallet.deposited+=val;
+      saveData();
+      renderWallet();
+      renderBetStats();
+      msg.textContent='Částka přidána do peněženky.';
+      msg.classList.add('ok');
+      inp.value='';
+    });
+
+    document.getElementById('reset-wallet').addEventListener('click',()=>{
+      const msg=document.getElementById('wallet-msg');
+      msg.textContent='';msg.className='msg';
+      if(!confirm('Resetovat peněženku (všechny vklady na 0)? Tikety zůstanou.'))return;
+      data.wallet.deposited=0;
+      saveData();
+      renderWallet();
+      renderBetStats();
+      msg.textContent='Peněženka vynulována.';
+      msg.classList.add('ok');
+    });
+
+    (function init(){
+      loadData();
+      renderWallet();
+      renderBetStats();
+    })();
+  </script>
+</body>
+</html>
