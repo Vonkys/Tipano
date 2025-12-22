@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<title>Tipano – Nový tiket ze screenu</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+<style>
+body {
+  background:#0f172a;
+  color:#e5e7eb;
+  font-family:system-ui;
+  padding:20px;
+}
+h2 { margin-bottom:10px; }
+
+.card {
+  background:#020617;
+  border-radius:14px;
+  padding:16px;
+  margin-bottom:16px;
+  box-shadow:0 10px 25px rgba(0,0,0,.35);
+}
+
+button {
+  background:#22c55e;
+  color:#000;
+  border:none;
+  padding:12px 18px;
+  border-radius:10px;
+  font-weight:700;
+  cursor:pointer;
+}
+button.secondary {
+  background:#334155;
+  color:#e5e7eb;
+}
+
+input {
+  background:#020617;
+  border:1px solid #334155;
+  color:#e5e7eb;
+  padding:10px;
+  border-radius:8px;
+  width:100%;
+}
+
+.match {
+  border-bottom:1px solid #334155;
+  padding:8px 0;
+}
+
+.small {
+  color:#9ca3af;
+  font-size:13px;
+}
+
+pre {
+  background:#020617;
+  padding:10px;
+  border-radius:10px;
+  max-height:200px;
+  overflow:auto;
+  font-size:12px;
+}
+</style>
+</head>
+
+<body>
+
+<h2>📸 Nový tiket ze screenu</h2>
+
+<div class="card">
+  <input type="file" id="img" accept="image/*">
+  <br><br>
+  <button onclick="runOCR()">Načíst screenshot</button>
+</div>
+
+<div class="card">
+  <h3>🧪 OCR text (debug)</h3>
+  <pre id="debug">—</pre>
+</div>
+
+<div class="card" id="preview" style="display:none">
+  <h3>📋 Načtené zápasy</h3>
+  <div id="matches"></div>
+
+  <p class="small">
+    Celkový kurz: <strong id="totalOdds">—</strong>
+  </p>
+
+  <label>Sázka</label>
+  <input type="number" id="stake" value="100">
+
+  <br><br>
+  <button onclick="saveSlip()">Vsadit (uložit tiket)</button>
+</div>
+
+<script>
+let parsedMatches = [];
+
+/* ================= OCR ================= */
+
+async function runOCR() {
+  const file = document.getElementById("img").files[0];
+  if (!file) return alert("Vyber obrázek");
+
+  document.getElementById("debug").textContent = "Probíhá OCR...";
+
+  const res = await Tesseract.recognize(file, "ces+eng");
+  document.getElementById("debug").textContent = res.data.text;
+
+  parseTipsportOCR(res.data.text);
+}
+
+/* =============== PARSER ================= */
+
+function normalize(text) {
+  return text
+    .replace(/\r/g, "")
+    .replace(/,/g, ".")
+    .replace(/[^\w.\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isName(word) {
+  return word &&
+    word.length > 2 &&
+    word[0] === word[0].toUpperCase() &&
+    !/^\d/.test(word);
+}
+
+function parseTipsportOCR(rawText) {
+  const text = normalize(rawText);
+  const words = text.split(" ");
+
+  parsedMatches = [];
+  let i = 0;
+
+  while (i < words.length - 6) {
+
+    if (
+      isName(words[i]) &&
+      isName(words[i+1]) &&
+      isName(words[i+2]) &&
+      isName(words[i+3])
+    ) {
+
+      const home = words[i] + " " + words[i+1];
+      const away = words[i+2] + " " + words[i+3];
+
+      let odds = null;
+
+      for (let j = i + 4; j < i + 20 && j < words.length; j++) {
+        if (/^\d+\.\d{2}$/.test(words[j])) {
+          odds = parseFloat(words[j]);
+          break;
+        }
+      }
+
+      if (odds) {
+        parsedMatches.push({
+          home,
+          away,
+          tip: home,
+          odds
+        });
+        i += 4;
+        continue;
+      }
+    }
+    i++;
+  }
+
+  renderPreview();
+}
+
+/* =============== UI ================= */
+
+function renderPreview() {
+  const box = document.getElementById("matches");
+  box.innerHTML = "";
+
+  let totalOdds = 1;
+
+  parsedMatches.forEach(m => {
+    totalOdds *= m.odds;
+    box.innerHTML += `
+      <div class="match">
+        <strong>${m.home} – ${m.away}</strong><br>
+        Tip: ${m.tip} | Kurz: ${m.odds}
+      </div>
+    `;
+  });
+
+  document.getElementById("totalOdds").textContent =
+    totalOdds.toFixed(2);
+
+  document.getElementById("preview").style.display =
+    parsedMatches.length ? "block" : "none";
+}
+
+/* =============== SAVE ================= */
+
+function saveSlip() {
+  const stake = Number(document.getElementById("stake").value);
+  if (!parsedMatches.length) return alert("Žádná data");
+
+  const slip = {
+    id: Date.now(),
+    name: "OCR tiket",
+    createdAt: new Date().toISOString(),
+    stake,
+    matches: parsedMatches,
+    result: "pending"
+  };
+
+  data.slips.push(slip);
+  saveData();
+
+  alert("✅ Tiket uložen");
+  location.href = "moje-tikety.html";
+}
+</script>
+
+</body>
+</html>
