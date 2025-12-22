@@ -140,7 +140,6 @@ pre{
 </div>
 
 <script>
-/* ===== STEJNÁ DATA JAKO STARÝ TIPTANO ===== */
 const STORAGE_KEY = 'tiptano-data-v1';
 let data = { slips: [], wallet: { deposited: 0 } };
 
@@ -155,10 +154,9 @@ function loadData(){
 function saveData(){
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
-
 loadData();
 
-/* ===== OCR LOGIKA – BEZE ZMĚN ===== */
+/* ===== OCR ===== */
 let parsedMatches = [];
 
 async function runOCR() {
@@ -171,13 +169,8 @@ async function runOCR() {
   parseTipsportOCR(res.data.text);
 }
 
-
-
-function renderPreview(){
-  const box = document.getElementById("matches");
-  let total = 1;
-  box.innerHTML = "";
-  parsedMatches.forEach(m=>{function parseTipsportOCR(rawText){
+/* ===== SPRÁVNÝ PARSER ===== */
+function parseTipsportOCR(rawText){
   const lines = rawText
     .split('\n')
     .map(l => l.replace(/\s+/g,' ').trim())
@@ -186,25 +179,20 @@ function renderPreview(){
   parsedMatches = [];
 
   for(let i = 0; i < lines.length; i++){
-    // řádek se zápasem
     if(lines[i].includes(' - ')){
       const parts = lines[i].split(' - ');
       const home = parts[0].trim();
       const away = parts.slice(1).join(' - ').trim();
 
-      // hledáme kurz na dalších řádcích
       for(let j = i + 1; j < i + 5 && j < lines.length; j++){
         const m = lines[j].match(/(\d+\.\d{2})/);
         if(m){
-          const odds = parseFloat(m[1]);
-
           parsedMatches.push({
             home,
             away,
-            tip: home,   // Tipsport default = domácí
-            odds
+            tip: home,
+            odds: parseFloat(m[1])
           });
-
           break;
         }
       }
@@ -214,6 +202,13 @@ function renderPreview(){
   renderPreview();
 }
 
+/* ===== PREVIEW ===== */
+function renderPreview(){
+  const box = document.getElementById("matches");
+  let total = 1;
+  box.innerHTML = "";
+
+  parsedMatches.forEach(m=>{
     total *= m.odds;
     box.innerHTML += `
       <div class="match">
@@ -222,11 +217,13 @@ function renderPreview(){
       </div>
     `;
   });
+
   document.getElementById("totalOdds").textContent = total.toFixed(2);
-  document.getElementById("preview").style.display = parsedMatches.length ? "block" : "none";
+  document.getElementById("preview").style.display =
+    parsedMatches.length ? "block" : "none";
 }
 
-/* ===== VSADIT – STEJNĚ JAKO STARÝ ===== */
+/* ===== VSADIT ===== */
 function saveSlip(){
   const stake = Number(document.getElementById("stake").value);
   const msg = document.getElementById("msg");
@@ -255,6 +252,7 @@ function saveSlip(){
   msg.textContent = "✅ Tiket vsazen – najdeš ho v Moje tikety";
 }
 </script>
+
 
 </body>
 </html>
