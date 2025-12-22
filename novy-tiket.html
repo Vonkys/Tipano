@@ -12,7 +12,6 @@ body{
   background:#0f172a;
   color:#e5e7eb;
   font-family:system-ui;
-  padding:0;
   margin:0;
   display:flex;
   justify-content:center;
@@ -32,7 +31,7 @@ nav{
 }
 .logo{
   font-weight:700;
-  letter-spacing:0.08em;
+  letter-spacing:.08em;
   color:#38bdf8;
 }
 .nav-links a{
@@ -93,7 +92,7 @@ pre{
   font-size:12px;
 }
 
-/* ===== OCR LOADING OVERLAY ===== */
+/* ===== OCR LOADING ===== */
 #ocr-loading{
   position:fixed;
   inset:0;
@@ -109,7 +108,6 @@ pre{
   border-radius:16px;
   padding:24px 28px;
   text-align:center;
-  box-shadow:0 20px 50px rgba(0,0,0,.6);
 }
 .spinner{
   width:46px;
@@ -120,14 +118,7 @@ pre{
   margin:0 auto 12px;
   animation:spin 1s linear infinite;
 }
-.loader-text{
-  font-size:.9rem;
-  color:#9ca3af;
-}
-
-@keyframes spin{
-  to{transform:rotate(360deg)}
-}
+@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 
@@ -175,147 +166,138 @@ pre{
 
 </div>
 
-<!-- OCR LOADING -->
+<!-- OCR OVERLAY -->
 <div id="ocr-loading">
   <div class="loader-box">
     <div class="spinner"></div>
-    <div class="loader-text" id="loader-text">Načítám obrázek…</div>
+    <div class="small" id="loader-text">Načítám obrázek…</div>
   </div>
 </div>
 
 <script>
-/* ===== DATA ===== */
-const STORAGE_KEY = 'tiptano-data-v1';
-let data = { slips: [], wallet: { deposited: 0 } };
+const STORAGE_KEY='tiptano-data-v1';
+let data={slips:[],wallet:{deposited:0}};
 
 function loadData(){
-  const raw = localStorage.getItem(STORAGE_KEY);
+  const raw=localStorage.getItem(STORAGE_KEY);
   if(raw){
-    const p = JSON.parse(raw);
-    if(p.slips) data.slips = p.slips;
-    if(p.wallet) data.wallet = p.wallet;
+    const p=JSON.parse(raw);
+    if(p.slips)data.slips=p.slips;
+    if(p.wallet)data.wallet=p.wallet;
   }
 }
 function saveData(){
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
 }
 loadData();
 
+let parsedMatches=[];
+
 /* ===== OCR ===== */
-let parsedMatches = [];
+async function runOCR(){
+  const file=document.getElementById("img").files[0];
+  if(!file)return alert("Vyber obrázek");
 
-async function runOCR() {
-  const file = document.getElementById("img").files[0];
-  if (!file) return alert("Vyber obrázek");
+  const overlay=document.getElementById("ocr-loading");
+  const text=document.getElementById("loader-text");
 
-  const overlay = document.getElementById("ocr-loading");
-  const status = document.getElementById("loader-text");
+  overlay.style.display="flex";
+  text.textContent="Načítám obrázek…";
 
-  overlay.style.display = "flex";
-  status.textContent = "Načítám obrázek…";
-
-  try {
-    const res = await Tesseract.recognize(
+  try{
+    const res=await Tesseract.recognize(
       file,
       "ces+eng",
       {
-        logger: m => {
-          if(m.status === "recognizing text"){
-            status.textContent = "Rozpoznávám text…";
+        logger:m=>{
+          if(m.status==="recognizing text"){
+            text.textContent="Rozpoznávám text…";
           }
         }
       }
     );
 
-    document.getElementById("debug").textContent = res.data.text;
-    status.textContent = "Analyzuji zápasy…";
+    document.getElementById("debug").textContent=res.data.text;
+    text.textContent="Analyzuji zápasy…";
     parseTipsportOCR(res.data.text);
 
-  } finally {
-    overlay.style.display = "none";
+  }finally{
+    overlay.style.display="none";
   }
 }
 
-/* ===== OCR PARSER – BEZE ZMĚN ===== */
-function normalize(text) {
-  return text.replace(/\r/g,"").replace(/,/g,".").replace(/[^\w.\s]/g,"").replace(/\s+/g," ").trim();
-}
-function isName(word) {
-  return word && word.length > 2 && word[0] === word[0].toUpperCase() && !/^\d/.test(word);
-}
+/* ===== PARSER ===== */
+function parseTipsportOCR(rawText){
+  const lines=rawText
+    .split('\n')
+    .map(l=>l.replace(/\s+/g,' ').trim())
+    .filter(l=>l.length>0);
 
-function parseTipsportOCR(rawText) {
-  const text = normalize(rawText);
-  const words = text.split(" ");
-  parsedMatches = [];
-  let i = 0;
+  parsedMatches=[];
 
-  while (i < words.length - 6) {
-    if (isName(words[i]) && isName(words[i+1]) && isName(words[i+2]) && isName(words[i+3])) {
-      const home = words[i] + " " + words[i+1];
-      const away = words[i+2] + " " + words[i+3];
-      let odds = null;
-      for (let j = i + 4; j < i + 20 && j < words.length; j++) {
-        if (/^\d+\.\d{2}$/.test(words[j])) {
-          odds = parseFloat(words[j]);
+  for(let i=0;i<lines.length;i++){
+    if(lines[i].includes(' - ')){
+      const parts=lines[i].split(' - ');
+      const home=parts[0].trim();
+      const away=parts.slice(1).join(' - ').trim();
+
+      for(let j=i+1;j<i+5 && j<lines.length;j++){
+        const m=lines[j].match(/(\d+\.\d{2})/);
+        if(m){
+          parsedMatches.push({
+            home,
+            away,
+            tip:home,
+            odds:parseFloat(m[1])
+          });
           break;
         }
       }
-      if (odds) {
-        parsedMatches.push({ home, away, tip: home, odds });
-        i += 4;
-        continue;
-      }
     }
-    i++;
   }
+
   renderPreview();
 }
 
+/* ===== PREVIEW ===== */
 function renderPreview(){
-  const box = document.getElementById("matches");
-  let total = 1;
-  box.innerHTML = "";
+  const box=document.getElementById("matches");
+  let total=1;
+  box.innerHTML="";
+
   parsedMatches.forEach(m=>{
-    total *= m.odds;
-    box.innerHTML += `
+    total*=m.odds;
+    box.innerHTML+=`
       <div class="match">
         <strong>${m.home} – ${m.away}</strong><br>
         Tip: ${m.tip} | Kurz: ${m.odds}
       </div>
     `;
   });
-  document.getElementById("totalOdds").textContent = total.toFixed(2);
-  document.getElementById("preview").style.display = parsedMatches.length ? "block" : "none";
+
+  document.getElementById("totalOdds").textContent=total.toFixed(2);
+  document.getElementById("preview").style.display=
+    parsedMatches.length?"block":"none";
 }
 
 /* ===== VSADIT ===== */
 function saveSlip(){
-  const stake = Number(document.getElementById("stake").value);
-  const msg = document.getElementById("msg");
+  const stake=Number(document.getElementById("stake").value);
+  const msg=document.getElementById("msg");
 
-  if(!parsedMatches.length){
-    msg.textContent = "Tiket je prázdný.";
-    return;
-  }
-  if(stake <= 0){
-    msg.textContent = "Zadej sázku.";
-    return;
-  }
-  if(stake > data.wallet.deposited){
-    msg.textContent = "Nemáš dost peněz v peněžence.";
-    return;
-  }
+  if(!parsedMatches.length)return msg.textContent="Tiket je prázdný.";
+  if(stake<=0)return msg.textContent="Zadej sázku.";
+  if(stake>data.wallet.deposited)return msg.textContent="Nemáš dost peněz.";
 
   data.slips.push({
-    id: Date.now(),
-    createdAt: new Date().toISOString(),
+    id:Date.now(),
+    createdAt:new Date().toISOString(),
     stake,
-    matches: parsedMatches
+    matches:parsedMatches
   });
 
   saveData();
-  msg.textContent = "✅ Tiket vsazen – najdeš ho v Moje tikety";
+  msg.textContent="✅ Tiket vsazen – najdeš ho v Moje tikety";
 }
 </script>
 
