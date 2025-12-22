@@ -12,86 +12,60 @@ body{
   background:#0f172a;
   color:#e5e7eb;
   font-family:system-ui;
-  padding:0;
   margin:0;
   display:flex;
   justify-content:center;
 }
-.app{
-  width:100%;
-  max-width:900px;
-  padding:1rem;
-}
+.app{max-width:900px;width:100%;padding:1rem}
 
-/* ===== NAV ===== */
 nav{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  margin-bottom:1rem;
+  display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem
 }
-.logo{
-  font-weight:700;
-  letter-spacing:0.08em;
-  color:#38bdf8;
-}
+.logo{font-weight:700;letter-spacing:.08em;color:#38bdf8}
 .nav-links a{
-  margin-left:.4rem;
-  padding:.35rem .7rem;
-  border-radius:999px;
-  background:#020617;
-  color:#e5e7eb;
-  text-decoration:none;
-  border:1px solid #1f2937;
-  font-size:.8rem;
+  margin-left:.4rem;padding:.35rem .7rem;border-radius:999px;
+  background:#020617;color:#e5e7eb;text-decoration:none;
+  border:1px solid #1f2937;font-size:.8rem
 }
 .nav-links a.primary{
   background:linear-gradient(135deg,#0ea5e9,#22c55e);
-  color:#0b1120;
-  border:none;
+  color:#0b1120;border:none
 }
 
-/* ===== OCR STYL (NEZMĚNĚNÝ) ===== */
 .card{
-  background:#020617;
-  border-radius:14px;
-  padding:16px;
-  margin-bottom:16px;
-  box-shadow:0 10px 25px rgba(0,0,0,.35);
+  background:#020617;border-radius:14px;padding:16px;margin-bottom:16px;
+  box-shadow:0 10px 25px rgba(0,0,0,.35)
 }
 button{
-  background:#22c55e;
-  color:#000;
-  border:none;
-  padding:12px 18px;
-  border-radius:10px;
-  font-weight:700;
-  cursor:pointer;
+  background:#22c55e;color:#000;border:none;
+  padding:12px 18px;border-radius:10px;font-weight:700;cursor:pointer
 }
 input{
-  background:#020617;
-  border:1px solid #334155;
-  color:#e5e7eb;
-  padding:10px;
-  border-radius:8px;
-  width:100%;
+  background:#020617;border:1px solid #334155;color:#e5e7eb;
+  padding:10px;border-radius:8px;width:100%
 }
-.match{
-  border-bottom:1px solid #334155;
-  padding:8px 0;
-}
-.small{
-  color:#9ca3af;
-  font-size:13px;
-}
+.match{border-bottom:1px solid #334155;padding:8px 0}
+.small{color:#9ca3af;font-size:13px}
 pre{
-  background:#020617;
-  padding:10px;
-  border-radius:10px;
-  max-height:200px;
-  overflow:auto;
-  font-size:12px;
+  background:#020617;padding:10px;border-radius:10px;
+  max-height:200px;overflow:auto;font-size:12px
 }
+
+/* LOADER */
+#ocr-loading{
+  position:fixed;inset:0;background:rgba(2,6,23,.85);
+  display:none;justify-content:center;align-items:center;z-index:9999
+}
+.loader-box{
+  background:#020617;border:1px solid #1f2937;border-radius:16px;
+  padding:24px 28px;text-align:center
+}
+.spinner{
+  width:46px;height:46px;border:4px solid #1f2937;
+  border-top-color:#22c55e;border-radius:50%;
+  margin:0 auto 12px;animation:spin 1s linear infinite
+}
+@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 
@@ -125,9 +99,7 @@ pre{
   <h3>📋 Načtené zápasy</h3>
   <div id="matches"></div>
 
-  <p class="small">
-    Celkový kurz: <strong id="totalOdds">—</strong>
-  </p>
+  <p class="small">Celkový kurz: <strong id="totalOdds">—</strong></p>
 
   <label>Sázka</label>
   <input type="number" id="stake" value="100">
@@ -139,207 +111,146 @@ pre{
 
 </div>
 
+<div id="ocr-loading">
+  <div class="loader-box">
+    <div class="spinner"></div>
+    <div class="small" id="loader-text">Načítám…</div>
+  </div>
+</div>
+
 <script>
-/* ================== DATA ================== */
-const STORAGE_KEY = 'tiptano-data-v1';
-let data = { slips: [], wallet: { deposited: 0 } };
+/* ================= DATA ================= */
+const STORAGE_KEY='tiptano-data-v1';
+let data={slips:[],wallet:{deposited:0}};
 
 function loadData(){
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if(raw){
+  const r=localStorage.getItem(STORAGE_KEY);
+  if(r){
     try{
-      const p = JSON.parse(raw);
-      if(p.slips) data.slips = p.slips;
-      if(p.wallet) data.wallet = p.wallet;
+      const p=JSON.parse(r);
+      if(p.slips)data.slips=p.slips;
+      if(p.wallet)data.wallet=p.wallet;
     }catch(e){}
   }
 }
 function saveData(){
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
 }
 loadData();
 
-/* ================== OCR ================== */
-let parsedMatches = [];
+/* ================= OCR ================= */
+let parsedMatches=[];
 
-/* ---------- LOADING OVERLAY ---------- */
-function showLoader(text){
-  let overlay = document.getElementById('ocr-loading');
-  if(!overlay){
-    overlay = document.createElement('div');
-    overlay.id = 'ocr-loading';
-    overlay.innerHTML = `
-      <div style="
-        background:#020617;
-        border:1px solid #1f2937;
-        border-radius:16px;
-        padding:24px 28px;
-        text-align:center;
-      ">
-        <div style="
-          width:46px;height:46px;
-          border:4px solid #1f2937;
-          border-top-color:#22c55e;
-          border-radius:50%;
-          margin:0 auto 12px;
-          animation:spin 1s linear infinite
-        "></div>
-        <div id="loader-text" style="color:#9ca3af;font-size:.9rem">${text}</div>
-      </div>
-    `;
-    overlay.style.cssText = `
-      position:fixed;inset:0;
-      background:rgba(2,6,23,.8);
-      display:flex;
-      justify-content:center;
-      align-items:center;
-      z-index:9999
-    `;
-    document.body.appendChild(overlay);
-
-    const style = document.createElement('style');
-    style.textContent = `@keyframes spin{to{transform:rotate(360deg)}}`;
-    document.head.appendChild(style);
-  }
-  document.getElementById('loader-text').textContent = text;
-  overlay.style.display = 'flex';
+function showLoader(t){
+  document.getElementById('ocr-loading').style.display='flex';
+  document.getElementById('loader-text').textContent=t;
 }
-
 function hideLoader(){
-  const o = document.getElementById('ocr-loading');
-  if(o) o.style.display = 'none';
+  document.getElementById('ocr-loading').style.display='none';
 }
 
-/* ---------- RUN OCR ---------- */
 async function runOCR(){
-  const file = document.getElementById("img").files[0];
-  if (!file) return alert("Vyber obrázek");
+  const f=document.getElementById('img').files[0];
+  if(!f)return alert('Vyber obrázek');
 
-  showLoader("Načítám obrázek…");
+  showLoader('Načítám obrázek…');
 
   try{
-    const res = await Tesseract.recognize(
-      file,
-      "ces+eng",
-      {
-        logger:m=>{
-          if(m.status==="recognizing text"){
-            showLoader("Rozpoznávám text…");
-          }
+    const res=await Tesseract.recognize(f,'ces+eng',{
+      logger:m=>{
+        if(m.status==='recognizing text'){
+          showLoader('Rozpoznávám text…');
         }
       }
-    );
-
-    document.getElementById("debug").textContent = res.data.text;
-    showLoader("Analyzuji zápasy…");
-
+    });
+    document.getElementById('debug').textContent=res.data.text;
+    showLoader('Analyzuji zápasy…');
     parseTipsportOCR(res.data.text);
-
   }finally{
     hideLoader();
   }
 }
 
-/* ================== PARSER ================== */
-function normalize(s){
-  return (s||'')
-    .toLowerCase()
-    .replace(/,/g,'.')
-    .replace(/\s+/g,' ')
-    .trim();
+/* ================= PARSER ================= */
+function norm(s){
+  return (s||'').toLowerCase().replace(/\s+/g,' ').trim();
 }
 
-function parseTipsportOCR(rawText){
-  const lines = rawText
-    .split('\n')
-    .map(l => l.replace(/\s+/g,' ').trim())
-    .filter(Boolean);
-
-  parsedMatches = [];
+function parseTipsportOCR(raw){
+  const lines=raw.split('\n').map(l=>l.trim()).filter(Boolean);
+  parsedMatches=[];
 
   for(let i=0;i<lines.length;i++){
     if(lines[i].includes(' - ')){
-      const [homeRaw, ...awayRaw] = lines[i].split(' - ');
-      const home = homeRaw.trim();
-      const away = awayRaw.join(' - ').trim();
+      const [h,...a]=lines[i].split(' - ');
+      const home=h.trim();
+      const away=a.join(' - ').trim();
 
-      let tip = home;
-      let tipCode = '1';
+      let tip='1';
+      let tipLabel=home;
 
-      for(let j=i+1;j<i+5 && j<lines.length;j++){
-        const l = normalize(lines[j]);
+      for(let j=i+1;j<i+6 && j<lines.length;j++){
+        const l=norm(lines[j]);
 
-        if(l.includes('1x') || (l.includes('neprohra') && l.includes(normalize(home)))){
-          tip = '1X'; tipCode='1X';
+        if(l==='1x'||l.includes('1 x')||l.includes('dvojtip')||l.includes('neprohra')){
+          tip='1X';tipLabel='1X';
         }
-        else if(l.includes('x2') || (l.includes('neprohra') && l.includes(normalize(away)))){
-          tip = 'X2'; tipCode='X2';
+        else if(l==='x2'||l.includes('x 2')){
+          tip='X2';tipLabel='X2';
         }
-        else if(l.includes('rem') || l==='x'){
-          tip = 'X'; tipCode='X';
+        else if(l==='x'||l.includes('rem')){
+          tip='X';tipLabel='X';
         }
-        else if(l.includes(normalize(home))){
-          tip = home; tipCode='1';
+        else if(l.includes(norm(home))){
+          tip='1';tipLabel=home;
         }
-        else if(l.includes(normalize(away))){
-          tip = away; tipCode='2';
+        else if(l.includes(norm(away))){
+          tip='2';tipLabel=away;
         }
 
-        const m = lines[j].match(/(\d+\.\d{2})/);
+        const m=lines[j].match(/(\d+\.\d{2})/);
         if(m){
           parsedMatches.push({
-            home,
-            away,
-            tip,
-            tipCode,
-            odds: parseFloat(m[1])
+            home,away,
+            tip:tipLabel,
+            tipCode:tip,
+            odds:parseFloat(m[1])
           });
           break;
         }
       }
     }
   }
-
   renderPreview();
 }
 
-/* ================== PREVIEW ================== */
+/* ================= PREVIEW ================= */
 function renderPreview(){
-  const box = document.getElementById("matches");
-  let total = 1;
-  box.innerHTML = "";
-
+  const box=document.getElementById('matches');
+  let total=1;
+  box.innerHTML='';
   parsedMatches.forEach(m=>{
-    total *= m.odds;
-    box.innerHTML += `
+    total*=m.odds;
+    box.innerHTML+=`
       <div class="match">
         <strong>${m.home} – ${m.away}</strong><br>
         Tip: ${m.tip} | Kurz: ${m.odds}
-      </div>
-    `;
+      </div>`;
   });
-
-  document.getElementById("totalOdds").textContent =
-    parsedMatches.length ? total.toFixed(2) : '—';
-
-  document.getElementById("preview").style.display =
-    parsedMatches.length ? "block" : "none";
+  document.getElementById('totalOdds').textContent=
+    parsedMatches.length?total.toFixed(2):'—';
+  document.getElementById('preview').style.display=
+    parsedMatches.length?'block':'none';
 }
 
-/* ================== VSADIT ================== */
+/* ================= VSADIT ================= */
 function saveSlip(){
-  const stake = Number(document.getElementById("stake").value);
-  const msg = document.getElementById("msg");
+  const stake=Number(document.getElementById('stake').value);
+  const msg=document.getElementById('msg');
 
-  if(!parsedMatches.length){
-    msg.textContent="Tiket je prázdný.";return;
-  }
-  if(stake<=0){
-    msg.textContent="Zadej sázku.";return;
-  }
-  if(stake>data.wallet.deposited){
-    msg.textContent="Nemáš dost peněz v peněžence.";return;
-  }
+  if(!parsedMatches.length){msg.textContent='Tiket je prázdný';return;}
+  if(stake<=0){msg.textContent='Zadej sázku';return;}
+  if(stake>data.wallet.deposited){msg.textContent='Nedostatek peněz';return;}
 
   data.slips.push({
     id:Date.now(),
@@ -349,7 +260,7 @@ function saveSlip(){
   });
 
   saveData();
-  msg.textContent="✅ Tiket vsazen – najdeš ho v Moje tikety";
+  msg.textContent='✅ Tiket uložen';
 }
 </script>
 </body>
