@@ -12,6 +12,7 @@ body{
   background:#0f172a;
   color:#e5e7eb;
   font-family:system-ui;
+  padding:0;
   margin:0;
   display:flex;
   justify-content:center;
@@ -31,7 +32,7 @@ nav{
 }
 .logo{
   font-weight:700;
-  letter-spacing:.08em;
+  letter-spacing:0.08em;
   color:#38bdf8;
 }
 .nav-links a{
@@ -50,7 +51,7 @@ nav{
   border:none;
 }
 
-/* ===== CARD ===== */
+/* ===== OCR STYL (NEZMĚNĚNÝ) ===== */
 .card{
   background:#020617;
   border-radius:14px;
@@ -91,34 +92,6 @@ pre{
   overflow:auto;
   font-size:12px;
 }
-
-/* ===== OCR LOADING ===== */
-#ocr-loading{
-  position:fixed;
-  inset:0;
-  background:rgba(2,6,23,.8);
-  display:none;
-  justify-content:center;
-  align-items:center;
-  z-index:9999;
-}
-.loader-box{
-  background:#020617;
-  border:1px solid #1f2937;
-  border-radius:16px;
-  padding:24px 28px;
-  text-align:center;
-}
-.spinner{
-  width:46px;
-  height:46px;
-  border:4px solid #1f2937;
-  border-top-color:#22c55e;
-  border-radius:50%;
-  margin:0 auto 12px;
-  animation:spin 1s linear infinite;
-}
-@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 
@@ -166,89 +139,87 @@ pre{
 
 </div>
 
-<!-- OCR OVERLAY -->
-<div id="ocr-loading">
-  <div class="loader-box">
-    <div class="spinner"></div>
-    <div class="small" id="loader-text">Načítám obrázek…</div>
-  </div>
-</div>
-
 <script>
-const STORAGE_KEY='tiptano-data-v1';
-let data={slips:[],wallet:{deposited:0}};
+const STORAGE_KEY = 'tiptano-data-v1';
+let data = { slips: [], wallet: { deposited: 0 } };
 
 function loadData(){
-  const raw=localStorage.getItem(STORAGE_KEY);
+  const raw = localStorage.getItem(STORAGE_KEY);
   if(raw){
-    const p=JSON.parse(raw);
-    if(p.slips)data.slips=p.slips;
-    if(p.wallet)data.wallet=p.wallet;
+    const p = JSON.parse(raw);
+    if(p.slips) data.slips = p.slips;
+    if(p.wallet) data.wallet = p.wallet;
   }
 }
 function saveData(){
-  localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 loadData();
 
-let parsedMatches=[];
-
 /* ===== OCR ===== */
-async function runOCR(){
-  const file=document.getElementById("img").files[0];
-  if(!file)return alert("Vyber obrázek");
+let parsedMatches = [];
 
-  const overlay=document.getElementById("ocr-loading");
-  const text=document.getElementById("loader-text");
+async function runOCR() {
+  const file = document.getElementById("img").files[0];
+  if (!file) return alert("Vyber obrázek");
 
-  overlay.style.display="flex";
-  text.textContent="Načítám obrázek…";
+  const res = await Tesseract.recognize(file, "ces+eng");
+  document.getElementById("debug").textContent = res.data.text;
 
-  try{
-    const res=await Tesseract.recognize(
-      file,
-      "ces+eng",
-      {
-        logger:m=>{
-          if(m.status==="recognizing text"){
-            text.textContent="Rozpoznávám text…";
-          }
-        }
-      }
-    );
-
-    document.getElementById("debug").textContent=res.data.text;
-    text.textContent="Analyzuji zápasy…";
-    parseTipsportOCR(res.data.text);
-
-  }finally{
-    overlay.style.display="none";
-  }
+  parseTipsportOCR(res.data.text);
 }
 
-/* ===== PARSER ===== */
+/* ===== SPRÁVNÝ PARSER ===== */
 function parseTipsportOCR(rawText){
-  const lines=rawText
+  const lines = rawText
     .split('\n')
-    .map(l=>l.replace(/\s+/g,' ').trim())
-    .filter(l=>l.length>0);
+    .map(l => l.replace(/\s+/g,' ').trim())
+    .filter(l => l.length > 0);
 
-  parsedMatches=[];
+  parsedMatches = [];
 
-  for(let i=0;i<lines.length;i++){
+  for(let i = 0; i < lines.length; i++){
     if(lines[i].includes(' - ')){
-      const parts=lines[i].split(' - ');
-      const home=parts[0].trim();
-      const away=parts.slice(1).join(' - ').trim();
+      const parts = lines[i].split(' - ');
+      const home = parts[0].trim();
+      const away = parts.slice(1).join(' - ').trim();
 
-      for(let j=i+1;j<i+5 && j<lines.length;j++){
-        const m=lines[j].match(/(\d+\.\d{2})/);
+      let tip = home;        // default
+      let tipCode = '1';     // 1 / X / 2 / 1X / X2
+
+      // ⬇️ projdeme pár dalších řádků
+      for(let j = i + 1; j < i + 4 && j < lines.length; j++){
+        const l = lines[j].toLowerCase();
+
+        if(l.includes('1x') || l.includes('neprohra') && l.includes(home.toLowerCase())){
+          tip = '1X';
+          tipCode = '1X';
+        }
+        else if(l.includes('x2') || l.includes('neprohra') && l.includes(away.toLowerCase())){
+          tip = 'X2';
+          tipCode = 'X2';
+        }
+        else if(l.includes('remí') || l === 'x'){
+          tip = 'X';
+          tipCode = 'X';
+        }
+        else if(l.includes(home.toLowerCase())){
+          tip = home;
+          tipCode = '1';
+        }
+        else if(l.includes(away.toLowerCase())){
+          tip = away;
+          tipCode = '2';
+        }
+
+        const m = lines[j].match(/(\d+\.\d{2})/);
         if(m){
           parsedMatches.push({
             home,
             away,
-            tip:home,
-            odds:parseFloat(m[1])
+            tip,
+            tipCode,
+            odds: parseFloat(m[1])
           });
           break;
         }
@@ -261,13 +232,13 @@ function parseTipsportOCR(rawText){
 
 /* ===== PREVIEW ===== */
 function renderPreview(){
-  const box=document.getElementById("matches");
-  let total=1;
-  box.innerHTML="";
+  const box = document.getElementById("matches");
+  let total = 1;
+  box.innerHTML = "";
 
   parsedMatches.forEach(m=>{
-    total*=m.odds;
-    box.innerHTML+=`
+    total *= m.odds;
+    box.innerHTML += `
       <div class="match">
         <strong>${m.home} – ${m.away}</strong><br>
         Tip: ${m.tip} | Kurz: ${m.odds}
@@ -275,31 +246,41 @@ function renderPreview(){
     `;
   });
 
-  document.getElementById("totalOdds").textContent=total.toFixed(2);
-  document.getElementById("preview").style.display=
-    parsedMatches.length?"block":"none";
+  document.getElementById("totalOdds").textContent = total.toFixed(2);
+  document.getElementById("preview").style.display =
+    parsedMatches.length ? "block" : "none";
 }
 
 /* ===== VSADIT ===== */
 function saveSlip(){
-  const stake=Number(document.getElementById("stake").value);
-  const msg=document.getElementById("msg");
+  const stake = Number(document.getElementById("stake").value);
+  const msg = document.getElementById("msg");
 
-  if(!parsedMatches.length)return msg.textContent="Tiket je prázdný.";
-  if(stake<=0)return msg.textContent="Zadej sázku.";
-  if(stake>data.wallet.deposited)return msg.textContent="Nemáš dost peněz.";
+  if(!parsedMatches.length){
+    msg.textContent = "Tiket je prázdný.";
+    return;
+  }
+  if(stake <= 0){
+    msg.textContent = "Zadej sázku.";
+    return;
+  }
+  if(stake > data.wallet.deposited){
+    msg.textContent = "Nemáš dost peněz v peněžence.";
+    return;
+  }
 
   data.slips.push({
-    id:Date.now(),
-    createdAt:new Date().toISOString(),
+    id: Date.now(),
+    createdAt: new Date().toISOString(),
     stake,
-    matches:parsedMatches
+    matches: parsedMatches
   });
 
   saveData();
-  msg.textContent="✅ Tiket vsazen – najdeš ho v Moje tikety";
+  msg.textContent = "✅ Tiket vsazen – najdeš ho v Moje tikety";
 }
 </script>
+
 
 </body>
 </html>
