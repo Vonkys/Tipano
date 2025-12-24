@@ -30,27 +30,14 @@ nav{display:flex;justify-content:space-between;align-items:center;margin-bottom:
 .match.lost{border-color:#f97373;background:rgba(220,38,38,.06)}
 
 input{
-  background:#020617;
-  color:#e5e7eb;
-  border:1px solid #374151;
-  border-radius:.4rem;
-  padding:.25rem;
-  text-align:center;
-  width:3rem
+  background:#020617;color:#e5e7eb;border:1px solid #374151;
+  border-radius:.4rem;padding:.25rem;text-align:center;width:3rem
 }
-
 .btn{
   background:linear-gradient(135deg,#0ea5e9,#22c55e);
-  border:none;
-  border-radius:999px;
-  padding:.25rem .6rem;
-  font-weight:600;
-  color:#0b1120;
-  cursor:pointer;
-  font-size:.75rem;
-  margin-left:.3rem
+  border:none;border-radius:999px;padding:.25rem .6rem;
+  font-weight:600;color:#0b1120;cursor:pointer;font-size:.75rem;margin-left:.3rem
 }
-
 .small{font-size:.75rem;color:#9ca3af}
 .summary{margin-top:.6rem;padding-top:.6rem;border-top:1px dashed #334155}
 </style>
@@ -70,7 +57,6 @@ input{
 </nav>
 
 <h1>Moje tikety</h1>
-
 <div id="slips"></div>
 
 </div>
@@ -82,9 +68,11 @@ let data={slips:[],wallet:{deposited:0}};
 function loadData(){
   const raw=localStorage.getItem(STORAGE_KEY);
   if(raw){
-    const p=JSON.parse(raw);
-    if(p.slips)data.slips=p.slips;
-    if(p.wallet)data.wallet=p.wallet;
+    try{
+      const p=JSON.parse(raw);
+      if(p.slips)data.slips=p.slips;
+      if(p.wallet)data.wallet=p.wallet;
+    }catch(e){}
   }
 }
 function saveData(){
@@ -95,13 +83,11 @@ function normalize(s){
   return (s||'').toLowerCase().replace(/\s+/g,' ').trim();
 }
 
-/* ===== POMOCNÉ ===== */
 function getTotalOdds(slip){
-  if(!slip.matches||!slip.matches.length) return 0;
-  return slip.matches.reduce((acc,m)=>acc*(Number(m.odds)||1),1);
+  return slip.matches.reduce((a,m)=>a*(Number(m.odds)||1),1);
 }
 
-/* ===== VYHODNOCENÍ ===== */
+/* ===== VYHODNOCENÍ JEDNOHO ZÁPASU ===== */
 function evaluateMatch(m){
   if(m.resultHome===''||m.resultAway===''||m.resultHome==null||m.resultAway==null){
     m.status='pending'; return;
@@ -109,41 +95,38 @@ function evaluateMatch(m){
 
   const h=parseInt(m.resultHome,10);
   const a=parseInt(m.resultAway,10);
-  if(isNaN(h)||isNaN(a)){ m.status='pending'; return; }
+  if(isNaN(h)||isNaN(a)){m.status='pending';return;}
+
+  const tip=normalize(m.tip);
 
   if(h===a){
-    m.status =
-      (m.tip||'').includes('0') ||
-      normalize(m.tip).includes('rem')
-      ? 'won':'lost';
+    m.status = (tip.includes('x') || tip.includes('rem')) ? 'won' : 'lost';
     return;
   }
 
-  const winner = h>a ? m.home : m.away;
-  const tip = normalize(m.tip);
+  const winner = h>a ? normalize(m.home) : normalize(m.away);
 
-  if(tip==='1' && h>a){ m.status='won'; return; }
-  if(tip==='2' && h<a){ m.status='won'; return; }
-
-  m.status = tip.includes(normalize(winner)) ? 'won' : 'lost';
+  if(tip==='1' && h>a) m.status='won';
+  else if(tip==='2' && h<a) m.status='won';
+  else if(tip==='1x' && h>=a) m.status='won';
+  else if(tip==='x2' && a>=h) m.status='won';
+  else if(tip.includes(winner)) m.status='won';
+  else m.status='lost';
 }
 
 /* ===== RENDER ===== */
 function render(){
   const box=document.getElementById('slips');
-
   if(!data.slips.length){
     box.innerHTML='<div class="small">Zatím žádný tiket.</div>';
     return;
   }
 
   const slipsSorted=[...data.slips].sort((a,b)=>{
-    const ta=new Date(a.createdAt||a.id||0).getTime();
-    const tb=new Date(b.createdAt||b.id||0).getTime();
-    return tb-ta;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
 
-  box.innerHTML=slipsSorted.map((slip,si)=>{
+  box.innerHTML=slipsSorted.map(slip=>{
     let won=0,lost=0,pending=0;
     slip.matches.forEach(m=>{
       if(m.status==='won')won++;
@@ -151,26 +134,22 @@ function render(){
       else pending++;
     });
 
-    let pill='status-pending',pillText='rozběhnuto';
-    let openBody=pending>0;
-
-    if(lost>0){pill='status-lost';pillText='prohraný'}
-    else if(pending===0){pill='status-won';pillText='vyhraný'}
-
+    const pill = lost>0 ? 'status-lost' : pending>0 ? 'status-pending' : 'status-won';
+    const pillText = lost>0 ? 'prohraný' : pending>0 ? 'rozběhnuto' : 'vyhraný';
     const totalOdds=getTotalOdds(slip);
-    const potentialWin=(slip.stake||0)*totalOdds;
+    const potential=(slip.stake||0)*totalOdds;
 
     return `
     <div class="slip">
       <div class="slip-header" onclick="this.nextElementSibling.classList.toggle('open')">
         <div>
-          <strong>${slip.createdAt ? new Date(slip.createdAt).toLocaleString() : ''}</strong>
+          <strong>${new Date(slip.createdAt).toLocaleString()}</strong>
           <div class="small">Zápasy: ${slip.matches.length} • OK ${won} / KO ${lost}</div>
         </div>
         <span class="status-pill ${pill}">${pillText}</span>
       </div>
 
-      <div class="slip-body ${openBody?'open':''}">
+      <div class="slip-body ${pending>0?'open':''}">
         ${slip.matches.map((m,mi)=>`
           <div class="match ${m.status||'pending'}">
             <div><strong>${m.home}</strong> – <strong>${m.away}</strong></div>
@@ -178,36 +157,38 @@ function render(){
 
             <div style="margin:.35rem 0">
               Výsledek:
-              <input id="h-${si}-${mi}" type="number" value="${m.resultHome??''}">
+              <input id="h-${slip.id}-${mi}" type="number" value="${m.resultHome??''}">
               :
-              <input id="a-${si}-${mi}" type="number" value="${m.resultAway??''}">
-              <button class="btn" onclick="confirmScore(${si},${mi})">✓</button>
+              <input id="a-${slip.id}-${mi}" type="number" value="${m.resultAway??''}">
+              <button class="btn" onclick="confirmScore(${slip.id},${mi})">✓</button>
             </div>
 
-            <div class="small">Stav: ${
-              m.status==='won'?'OK':
-              m.status==='lost'?'KO':'čeká'
-            }</div>
+            <div class="small">Stav: ${m.status==='won'?'OK':m.status==='lost'?'KO':'čeká'}</div>
           </div>
         `).join('')}
 
         <div class="summary">
           <div class="small">Celkový kurz: <strong>${totalOdds.toFixed(2)}</strong></div>
           <div class="small">Vklad: <strong>${slip.stake} Kč</strong></div>
-          <div class="small">Možná výhra: <strong>${potentialWin.toFixed(2)} Kč</strong></div>
+          <div class="small">Možná výhra: <strong>${potential.toFixed(2)} Kč</strong></div>
         </div>
       </div>
     </div>`;
   }).join('');
 }
 
-/* ===== POTVRZENÍ SKÓRE ===== */
-function confirmScore(si,mi){
-  const h=document.getElementById(`h-${si}-${mi}`).value;
-  const a=document.getElementById(`a-${si}-${mi}`).value;
+/* ===== POTVRZENÍ SKÓRE (ID, NE INDEX) ===== */
+function confirmScore(slipId,matchIndex){
+  const slip=data.slips.find(s=>s.id===slipId);
+  if(!slip) return;
+
+  const m=slip.matches[matchIndex];
+  if(!m) return;
+
+  const h=document.getElementById(`h-${slipId}-${matchIndex}`).value;
+  const a=document.getElementById(`a-${slipId}-${matchIndex}`).value;
   if(h===''||a==='') return alert('Zadej oba výsledky');
 
-  const m=data.slips[si].matches[mi];
   m.resultHome=h;
   m.resultAway=a;
 
@@ -219,6 +200,5 @@ function confirmScore(si,mi){
 loadData();
 render();
 </script>
-
 </body>
 </html>
