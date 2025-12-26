@@ -89,29 +89,29 @@ function getTotalOdds(slip){
 
 /* ===== VYHODNOCENÍ JEDNOHO ZÁPASU ===== */
 function evaluateMatch(m){
-  if(m.resultHome===''||m.resultAway===''||m.resultHome==null||m.resultAway==null){
-    m.status='pending'; return;
-  }
-
-  const h=parseInt(m.resultHome,10);
-  const a=parseInt(m.resultAway,10);
-  if(isNaN(h)||isNaN(a)){m.status='pending';return;}
-
-  const tip=normalize(m.tip);
-
-  if(h===a){
-    m.status = (tip.includes('x') || tip.includes('rem')) ? 'won' : 'lost';
+  const h = Number(m.resultHome);
+  const a = Number(m.resultAway);
+  if(isNaN(h) || isNaN(a)){
+    m.status = 'pending';
     return;
   }
 
-  const winner = h>a ? normalize(m.home) : normalize(m.away);
+  let outcome; // 1 / 2 / X
+  if(h > a) outcome = '1';
+  else if(h < a) outcome = '2';
+  else outcome = 'X';
 
-  if(tip==='1' && h>a) m.status='won';
-  else if(tip==='2' && h<a) m.status='won';
-  else if(tip==='1x' && h>=a) m.status='won';
-  else if(tip==='x2' && a>=h) m.status='won';
-  else if(tip.includes(winner)) m.status='won';
-  else m.status='lost';
+  const t = m.tipCode || '1'; // fallback
+
+  if(
+    t === outcome ||
+    (t === '1X' && (outcome === '1' || outcome === 'X')) ||
+    (t === 'X2' && (outcome === '2' || outcome === 'X'))
+  ){
+    m.status = 'won';
+  } else {
+    m.status = 'lost';
+  }
 }
 
 /* ===== RENDER ===== */
