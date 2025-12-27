@@ -86,7 +86,18 @@ function normalize(s){
 function getTotalOdds(slip){
   return slip.matches.reduce((a,m)=>a*(Number(m.odds)||1),1);
 }
+function formatTip(m){
+  if(!m.tipCode) return '—';
 
+  switch(m.tipCode){
+    case '1':  return m.home;
+    case '2':  return m.away;
+    case 'X':  return 'Remíza';
+    case '1X': return m.home + ' nebo remíza';
+    case 'X2': return m.away + ' nebo remíza';
+    default:   return m.tipCode;
+  }
+}
 /* ===== VYHODNOCENÍ JEDNOHO ZÁPASU ===== */
 function evaluateMatch(m){
   const h = Number(m.resultHome);
@@ -153,8 +164,9 @@ function render(){
         ${slip.matches.map((m,mi)=>`
           <div class="match ${m.status||'pending'}">
             <div><strong>${m.home}</strong> – <strong>${m.away}</strong></div>
-            <div class="small">Tip: ${m.tip} • Kurz: ${m.odds}</div>
-
+            <div class="small">
+            Tip: ${formatTip(m)} (${m.tipCode}) • Kurz: ${m.odds}
+            </div>
             <div style="margin:.35rem 0">
               Výsledek:
               <input id="h-${slip.id}-${mi}" type="number" value="${m.resultHome??''}">
