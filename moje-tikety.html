@@ -153,18 +153,12 @@ function render(){
     return `
     <div class="slip">
       <div class="slip-header">
-  <div onclick="this.parentElement.nextElementSibling.classList.toggle('open')" style="flex:1;cursor:pointer">
-    <strong>${new Date(slip.createdAt).toLocaleString()}</strong>
-    <div class="small">Zápasy: ${slip.matches.length} • OK ${won} / KO ${lost}</div>
-  </div>
-  <span class="status-pill ${pill}">${pillText}</span>
-  <button class="btn" onclick="deleteSlip(${slip.id})">🗑</button>
-</div>
-        <div>
+        <div onclick="this.parentElement.nextElementSibling.classList.toggle('open')" style="flex:1;cursor:pointer">
           <strong>${new Date(slip.createdAt).toLocaleString()}</strong>
           <div class="small">Zápasy: ${slip.matches.length} • OK ${won} / KO ${lost}</div>
         </div>
         <span class="status-pill ${pill}">${pillText}</span>
+        <button class="btn" onclick="deleteSlip(${slip.id})">🗑</button>
       </div>
 
       <div class="slip-body ${pending>0?'open':''}">
@@ -172,7 +166,7 @@ function render(){
           <div class="match ${m.status||'pending'}">
             <div><strong>${m.home}</strong> – <strong>${m.away}</strong></div>
             <div class="small">
-            Tip: ${formatTip(m)} (${m.tipCode}) • Kurz: ${m.odds}
+              Tip: ${formatTip(m)} (${m.tipCode}) • Kurz: ${m.odds}
             </div>
             <div style="margin:.35rem 0">
               Výsledek:
@@ -181,7 +175,6 @@ function render(){
               <input id="a-${slip.id}-${mi}" type="number" value="${m.resultAway??''}">
               <button class="btn" onclick="confirmScore(${slip.id},${mi})">✓</button>
             </div>
-
             <div class="small">Stav: ${m.status==='won'?'OK':m.status==='lost'?'KO':'čeká'}</div>
           </div>
         `).join('')}
@@ -195,6 +188,7 @@ function render(){
     </div>`;
   }).join('');
 }
+
 
 /* ===== POTVRZENÍ SKÓRE (ID, NE INDEX) ===== */
 function confirmScore(slipId,matchIndex){
