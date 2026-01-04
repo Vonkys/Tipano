@@ -172,28 +172,60 @@ async function runOCR(){
 
 /* PARSER – JEN ZÁPASY + KURZ */
 function parseOCR(text){
-  const lines=text.split('\n').map(l=>l.trim()).filter(Boolean);
-  parsedMatches=[];
+  const lines = text
+    .split('\n')
+    .map(l => l.trim())
+    .filter(Boolean);
 
-  for(let i=0;i<lines.length;i++){
-    if(lines[i].includes(' - ')){
-      const [home, ...rest]=lines[i].split(' - ');
-      const away=rest.join(' - ');
-      for(let j=i+1;j<i+5 && j<lines.length;j++){
-        const m=lines[j].match(/(\d+\.\d{2})/);
-        if(m){
-          parsedMatches.push({
-            home,away,
-            odds:parseFloat(m[1]),
-            tipCode:null
-          });
-          break;
-        }
+  parsedMatches = [];
+
+  const matchLineRegex =
+    /^[A-Za-zÁČĎÉĚÍŇÓŘŠŤÚŮÝŽa-záčďéěíňóřšťúůýž .]+ - [A-Za-zÁČĎÉĚÍŇÓŘŠŤÚŮÝŽa-záčďéěíňóřšťúůýž .]+$/;
+
+  for(let i = 0; i < lines.length; i++){
+
+    const line = lines[i];
+
+    // ❌ zahodit dvojtip / neprohra / výsledek
+    if (
+      line.toLowerCase().includes('dvojtip') ||
+      line.toLowerCase().includes('neprohra') ||
+      line.toLowerCase().includes('výsledek')
+    ) continue;
+
+    // ✅ pouze řádky TÝM - TÝM
+    if (!matchLineRegex.test(line)) continue;
+
+    const [home, away] = line.split(' - ').map(s => s.trim());
+    const id = home + ' vs ' + away;
+
+    // ❌ žádné duplicity
+    if (parsedMatches.some(m => m.id === id)) continue;
+
+    // hledání kurzu v následujících řádcích
+    let odds = null;
+    for(let j = i + 1; j < i + 6 && j < lines.length; j++){
+      const m = lines[j].match(/(\d+\.\d{2})/);
+      if(m){
+        odds = parseFloat(m[1]);
+        break;
       }
     }
+
+    if(odds){
+      parsedMatches.push({
+        id,
+        home,
+        away,
+        odds,
+        tipCode: null
+      });
+    }
   }
+
   renderPreview();
 }
+
 
 /* PREVIEW */
 function renderPreview(){
