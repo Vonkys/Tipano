@@ -210,18 +210,11 @@ function confirmScore(slipId,matchIndex){
   render();
 }
 function deleteSlip(id){
-  const slip = data.slips.find(s => s.id === id);
-  if(!slip) return;
-
-  // 💰 vrácení peněz
-  data.wallet.deposited += slip.stake;
-
-  // 🗑️ smazání tiketu
   data.slips = data.slips.filter(s => s.id !== id);
-
   saveData();
-  renderSlips?.(); // pokud existuje
+  render();
 }
+
 
 
 loadData();
