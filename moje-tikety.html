@@ -209,13 +209,20 @@ function confirmScore(slipId,matchIndex){
   saveData();
   render();
 }
-function deleteSlip(slipId){
-  if(!confirm('Opravdu chceš smazat celý tiket?')) return;
+function deleteSlip(id){
+  const slip = data.slips.find(s => s.id === id);
+  if(!slip) return;
 
-  data.slips = data.slips.filter(s => s.id !== slipId);
+  // 💰 vrácení peněz
+  data.wallet.deposited += slip.stake;
+
+  // 🗑️ smazání tiketu
+  data.slips = data.slips.filter(s => s.id !== id);
+
   saveData();
-  render();
+  renderSlips?.(); // pokud existuje
 }
+
 
 loadData();
 render();
