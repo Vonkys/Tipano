@@ -152,7 +152,14 @@ function render(){
 
     return `
     <div class="slip">
-      <div class="slip-header" onclick="this.nextElementSibling.classList.toggle('open')">
+      <div class="slip-header">
+  <div onclick="this.parentElement.nextElementSibling.classList.toggle('open')" style="flex:1;cursor:pointer">
+    <strong>${new Date(slip.createdAt).toLocaleString()}</strong>
+    <div class="small">Zápasy: ${slip.matches.length} • OK ${won} / KO ${lost}</div>
+  </div>
+  <span class="status-pill ${pill}">${pillText}</span>
+  <button class="btn" onclick="deleteSlip(${slip.id})">🗑</button>
+</div>
         <div>
           <strong>${new Date(slip.createdAt).toLocaleString()}</strong>
           <div class="small">Zápasy: ${slip.matches.length} • OK ${won} / KO ${lost}</div>
@@ -205,6 +212,13 @@ function confirmScore(slipId,matchIndex){
   m.resultAway=a;
 
   evaluateMatch(m);
+  saveData();
+  render();
+}
+function deleteSlip(slipId){
+  if(!confirm('Opravdu chceš smazat celý tiket?')) return;
+
+  data.slips = data.slips.filter(s => s.id !== slipId);
   saveData();
   render();
 }
