@@ -180,32 +180,38 @@ function parseOCR(text){
   parsedMatches = [];
 
   const matchLineRegex =
-    /^[A-Za-zÁČĎÉĚÍŇÓŘŠŤÚŮÝŽa-záčďéěíňóřšťúůýž .]+ - [A-Za-zÁČĎÉĚÍŇÓŘŠŤÚŮÝŽa-záčďéěíňóřšťúůýž .]+$/;
+    /^[A-Za-zÁČĎÉĚÍŇÓŘŠŤÚŮÝŽa-záčďéěíňóřšťúůýž0-9 .]+ - [A-Za-zÁČĎÉĚÍŇÓŘŠŤÚŮÝŽa-záčďéěíňóřšťúůýž0-9 .]+$/;
 
   for(let i = 0; i < lines.length; i++){
-
     const line = lines[i];
 
-    // ❌ zahodit dvojtip / neprohra / výsledek
-    if (
-      line.toLowerCase().includes('dvojtip') ||
-      line.toLowerCase().includes('neprohra') ||
-      line.toLowerCase().includes('výsledek')
+    // ❌ ignoruj systémové řádky
+    const low = line.toLowerCase();
+    if(
+      low.includes('výsledek zápasu') ||
+      low.includes('dvojtip') ||
+      low.includes('neprohra')
     ) continue;
 
-    // ✅ pouze řádky TÝM - TÝM
-    if (!matchLineRegex.test(line)) continue;
+    // ✅ pouze TÝM - TÝM
+    if(!matchLineRegex.test(line)) continue;
 
     const [home, away] = line.split(' - ').map(s => s.trim());
     const id = home + ' vs ' + away;
 
-    // ❌ žádné duplicity
-    if (parsedMatches.some(m => m.id === id)) continue;
+    // ❌ duplicity
+    if(parsedMatches.some(m => m.id === id)) continue;
 
-    // hledání kurzu v následujících řádcích
+    // 🔍 hledání kurzu HLUBŠE (LIVE!)
     let odds = null;
-    for(let j = i + 1; j < i + 6 && j < lines.length; j++){
-      const m = lines[j].match(/(\d+\.\d{2})/);
+    for(let j = i + 1; j < lines.length; j++){
+      const l = lines[j];
+
+      // přeruš, když začne další zápas
+      if(matchLineRegex.test(l)) break;
+
+      // kurz
+      const m = l.match(/\b(\d+\.\d{2})\b/);
       if(m){
         odds = parseFloat(m[1]);
         break;
@@ -225,6 +231,7 @@ function parseOCR(text){
 
   renderPreview();
 }
+
 
 
 /* PREVIEW */
